@@ -29,6 +29,7 @@ export class AuthService {
       return user;
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError) {
+        // P2002 is a error code from prisma for duplicate entries
         if (error.code === 'P2002') {
           throw new ForbiddenException('Credentials taken');
         }
@@ -37,7 +38,20 @@ export class AuthService {
     }
   }
 
-  signin() {
-    return 'User signed in';
+  async signin(dto: AuthDto) {
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: dto.email,
+      },
+    });
+    if (!user) {
+      throw new ForbiddenException('Email or Password incorrect');
+    }
+    const pwMatches = await argon.verify(user.password, dto.password);
+    if (!pwMatches) {
+      throw new ForbiddenException('Email or Password incorrect');
+    }
+    delete user.password;
+    return user;
   }
 }
